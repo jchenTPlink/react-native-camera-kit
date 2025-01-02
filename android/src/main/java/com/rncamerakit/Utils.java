@@ -214,7 +214,10 @@ public class Utils {
      * max supported aspect ratio - 16:9
      */
     public static int convertDeviceHeightToSupportedAspectRatio(float actualWidth, float actualHeight) {
-        return (int) (actualHeight / actualWidth > MAX_SCREEN_RATIO ? actualWidth * MAX_SCREEN_RATIO : actualHeight);
+        
+        return (int) actualHeight;
+        
+        //return (int) (actualHeight / actualWidth > MAX_SCREEN_RATIO ? actualWidth * MAX_SCREEN_RATIO : actualHeight);
     }
 
 
