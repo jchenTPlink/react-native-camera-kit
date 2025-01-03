@@ -40,6 +40,7 @@ public class CameraViewManager extends SimpleViewManager<CameraView> {
     private static CameraCaptureSession captureSession;
     private static CaptureRequest.Builder previewRequestBuilder;
     private static ThemedReactContext reactContext;
+    private static CameraView currentCameraView;
 
     @Override
     public String getName() {
@@ -50,6 +51,18 @@ public class CameraViewManager extends SimpleViewManager<CameraView> {
     protected CameraView createViewInstance(ThemedReactContext reactContext) {
         CameraViewManager.reactContext = reactContext;
         return new CameraView(reactContext);
+    }
+
+    public static void setCameraView(CameraView cameraView) {
+        currentCameraView = cameraView;
+    }
+
+    public static CameraView getCurrentCameraView() {
+        return currentCameraView;
+    }
+
+    public static void removeCameraView() {
+        currentCameraView = null;
     }
 
     private static void openCamera(CameraView view) {
@@ -91,17 +104,6 @@ public class CameraViewManager extends SimpleViewManager<CameraView> {
             e.printStackTrace();
         }
     }
-
-    private static CameraView currentCameraView;
-
-    public static void setCameraView(CameraView cameraView) {
-        currentCameraView = cameraView;
-    }
-
-    public static CameraView getCurrentCameraView() {
-        return currentCameraView;
-    }
-
 
     private static void startPreview(CameraView view) {
         try {
