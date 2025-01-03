@@ -213,6 +213,9 @@ public class Utils {
      * Since Camera API 1 doesn't support the new 18:9 and 18.5:9 screen aspect ratio, we convert to the
      * max supported aspect ratio - 16:9
      */
+
+    // jchen this is probably why the camera doesn't show full screen on our android device
+    
     public static int convertDeviceHeightToSupportedAspectRatio(float actualWidth, float actualHeight) {
         return (int) (actualHeight / actualWidth > MAX_SCREEN_RATIO ? actualWidth * MAX_SCREEN_RATIO : actualHeight);
     }
