@@ -42,6 +42,8 @@ class CKCameraManager : SimpleViewManager<CKCamera>() {
         logCommand += ")"
         Log.d(TAG, logCommand)
     }
+    
+    //jchen was here
 
     override fun getExportedCustomDirectEventTypeConstants(): Map<String, Any> {
         return MapBuilder.of(
