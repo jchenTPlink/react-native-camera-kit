@@ -1,6 +1,10 @@
 package com.rncamerakit.camera;
 
-import android.hardware.Camera;
+import android.hardware.camera2.CameraAccessException;
+import android.hardware.camera2.CameraCharacteristics;
+import android.hardware.camera2.CameraManager;
+import android.hardware.camera2.params.StreamConfigurationMap;
+import android.content.Context;
 
 import com.facebook.react.bridge.LifecycleEventListener;
 import com.facebook.react.bridge.Promise;
@@ -9,7 +13,6 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.rncamerakit.camera.commands.Capture;
 import com.rncamerakit.camera.permission.CameraPermission;
-
 
 public class CameraModule extends ReactContextBaseJavaModule {
 
@@ -26,13 +29,10 @@ public class CameraModule extends ReactContextBaseJavaModule {
         getReactApplicationContext().addLifecycleEventListener(new LifecycleEventListener() {
             @Override
             public void onHostResume() {
-                if (checkPermissionStatusPromise != null  && getCurrentActivity() != null) {
-                    getCurrentActivity().runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            checkPermissionStatusPromise.resolve(cameraPermission.checkAuthorizationStatus(getCurrentActivity()));
-                            checkPermissionStatusPromise = null;
-                        }
+                if (checkPermissionStatusPromise != null && getCurrentActivity() != null) {
+                    getCurrentActivity().runOnUiThread(() -> {
+                        checkPermissionStatusPromise.resolve(cameraPermission.checkAuthorizationStatus(getCurrentActivity()));
+                        checkPermissionStatusPromise = null;
                     });
                 }
             }
@@ -70,39 +70,55 @@ public class CameraModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void hasFrontCamera(Promise promise) {
-
-        int numCameras = Camera.getNumberOfCameras();
-        for (int i = 0; i < numCameras; i++) {
-            Camera.CameraInfo info = new Camera.CameraInfo();
-            Camera.getCameraInfo(i, info);
-            if (info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
-                promise.resolve(true);
-                return;
+        CameraManager cameraManager = (CameraManager) getReactApplicationContext().getSystemService(Context.CAMERA_SERVICE);
+        try {
+            String[] cameraIdList = cameraManager.getCameraIdList();
+            for (String cameraId : cameraIdList) {
+                CameraCharacteristics characteristics = cameraManager.getCameraCharacteristics(cameraId);
+                Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
+                if (facing != null && facing == CameraCharacteristics.LENS_FACING_FRONT) {
+                    promise.resolve(true);
+                    return;
+                }
             }
+            promise.resolve(false);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+            promise.reject("CameraAccessError", "Unable to access camera manager");
         }
-        promise.resolve(false);
     }
 
     @ReactMethod
     public void hasFlashForCurrentCamera(Promise promise) {
-        Camera camera = CameraViewManager.getCamera();
-        promise.resolve(camera.getParameters().getSupportedFlashModes() != null);
+        CameraManager cameraManager = (CameraManager) getReactApplicationContext().getSystemService(Context.CAMERA_SERVICE);
+        try {
+            String[] cameraIdList = cameraManager.getCameraIdList();
+            for (String cameraId : cameraIdList) {
+                CameraCharacteristics characteristics = cameraManager.getCameraCharacteristics(cameraId);
+                Boolean hasFlash = characteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
+                promise.resolve(hasFlash != null && hasFlash);
+                return;
+            }
+            promise.resolve(false);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+            promise.reject("CameraAccessError", "Unable to access camera manager");
+        }
     }
 
     @ReactMethod
     public void changeCamera(Promise promise) {
-        promise.resolve(CameraViewManager.changeCamera());
+        promise.reject("NotImplemented", "Camera switching is not implemented in this refactor.");
     }
 
     @ReactMethod
     public void setFlashMode(String mode, Promise promise) {
-        promise.resolve(CameraViewManager.setFlashMode(mode));
+        promise.reject("NotImplemented", "Flash mode setting is not implemented in this refactor.");
     }
 
     @ReactMethod
     public void getFlashMode(Promise promise) {
-        Camera camera = CameraViewManager.getCamera();
-        promise.resolve(camera.getParameters().getFlashMode());
+        promise.reject("NotImplemented", "Flash mode retrieval is not implemented in this refactor.");
     }
 
     @ReactMethod

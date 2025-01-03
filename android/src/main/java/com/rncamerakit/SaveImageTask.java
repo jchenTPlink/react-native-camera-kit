@@ -5,7 +5,8 @@ import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
-import android.hardware.Camera;
+import android.hardware.camera2.CameraCharacteristics;
+import android.hardware.camera2.CameraManager;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.provider.MediaStore;
@@ -51,7 +52,7 @@ public class SaveImageTask extends AsyncTask<byte[], Void, Void> {
         this(context, promise, saveToCameraRoll);
         this.bitmapUrl = bitmapUrl;
         if (this.bitmapUrl != null) {
-            this.bitmapUrl = this.bitmapUrl.replace("file://","");
+            this.bitmapUrl = this.bitmapUrl.replace("file://", "");
         }
     }
 
@@ -93,8 +94,7 @@ public class SaveImageTask extends AsyncTask<byte[], Void, Void> {
             } else {
                 image = getImageBitmapFromLocalImageFile();
             }
-        }
-        else {
+        } else {
             byte[] rawImageData = data[0];
             image = decodeAndRotateIfNeeded(rawImageData);
         }
@@ -121,7 +121,7 @@ public class SaveImageTask extends AsyncTask<byte[], Void, Void> {
 
     private WritableMap createImageInfo(String fileUri, String id, String fileName, long fileSize, int width, int height) {
         WritableMap imageInfo = Arguments.createMap();
-        imageInfo.putString("uri",  fileUri);
+        imageInfo.putString("uri", fileUri);
         imageInfo.putString("id", id);
         imageInfo.putString("name", fileName);
         imageInfo.putInt("size", (int) fileSize);
@@ -179,10 +179,27 @@ public class SaveImageTask extends AsyncTask<byte[], Void, Void> {
         boolean hasOrientation = exifIFD0Directory.containsTag(ExifIFD0Directory.TAG_ORIENTATION);
         if (hasOrientation) {
             final int exifOrientation = exifIFD0Directory.getInt(ExifIFD0Directory.TAG_ORIENTATION);
-            boolean isFacingFront = CameraViewManager.getCameraInfo().facing == Camera.CameraInfo.CAMERA_FACING_FRONT;
+            boolean isFacingFront = isFrontFacingCamera();
             convertExifOrientationToMatrix(matrix, exifOrientation, isFacingFront);
         }
         return matrix;
+    }
+
+    private boolean isFrontFacingCamera() {
+        CameraManager cameraManager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
+        try {
+            String[] cameraIdList = cameraManager.getCameraIdList();
+            for (String id : cameraIdList) {
+                CameraCharacteristics characteristics = cameraManager.getCameraCharacteristics(id);
+                Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
+                if (facing != null && facing == CameraCharacteristics.LENS_FACING_FRONT) {
+                    return true;
+                }
+            }
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+        return false;
     }
 
     private void convertExifOrientationToMatrix(Matrix matrix, int exifOrientation, boolean isCameraFacingFront) {
@@ -241,7 +258,7 @@ public class SaveImageTask extends AsyncTask<byte[], Void, Void> {
         File imageFile;
         FileOutputStream outputStream;
 
-        Long tsLong = System.currentTimeMillis()/1000;
+        Long tsLong = System.currentTimeMillis() / 1000;
         String fileName = "temp_Image_" + tsLong.toString() + ".jpg";
 
         try {
