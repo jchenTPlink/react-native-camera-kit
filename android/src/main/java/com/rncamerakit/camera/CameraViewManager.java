@@ -92,6 +92,17 @@ public class CameraViewManager extends SimpleViewManager<CameraView> {
         }
     }
 
+    private static CameraView currentCameraView;
+
+    public static void setCameraView(CameraView cameraView) {
+        currentCameraView = cameraView;
+    }
+
+    public static CameraView getCurrentCameraView() {
+        return currentCameraView;
+    }
+
+
     private static void startPreview(CameraView view) {
         try {
             SurfaceHolder holder = view.getHolder();
