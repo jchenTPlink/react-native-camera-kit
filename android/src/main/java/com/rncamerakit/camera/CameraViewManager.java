@@ -81,6 +81,10 @@ public class CameraViewManager extends SimpleViewManager<CameraView> {
         return null;
     }
 
+    public static void reconnect() {
+        // Placeholder for reconnect logic, if needed in future
+    }
+
     private static void openCamera(CameraView view) {
         CameraManager cameraManager = (CameraManager) reactContext.getSystemService(Context.CAMERA_SERVICE);
         try {
