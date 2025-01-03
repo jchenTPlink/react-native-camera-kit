@@ -35,22 +35,12 @@ public class CameraView extends FrameLayout implements SurfaceHolder.Callback {
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         int actualPreviewWidth = getResources().getDisplayMetrics().widthPixels;
         int actualPreviewHeight = getResources().getDisplayMetrics().heightPixels;
-
-        // Maintain the original aspect ratio
-        float aspectRatio = (float) actualPreviewWidth / actualPreviewHeight;
-        int previewWidth = actualPreviewWidth;
-        int previewHeight = (int) (actualPreviewWidth / aspectRatio);
-
-        // Center the preview if there are black bars
-        int topOffset = (actualPreviewHeight - previewHeight) / 2;
-
-        surface.layout(0, topOffset, previewWidth, topOffset + previewHeight);
-
+        int height = Utils.convertDeviceHeightToSupportedAspectRatio(actualPreviewWidth, actualPreviewHeight);
+        surface.layout(0, 0, actualPreviewWidth, height);
         if (barcodeFrame != null) {
-            ((View) barcodeFrame).layout(0, topOffset, previewWidth, topOffset + previewHeight);
+            ((View) barcodeFrame).layout(0, 0, actualPreviewWidth, height);
         }
     }
-
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
