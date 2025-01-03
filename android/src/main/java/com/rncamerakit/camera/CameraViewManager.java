@@ -1,7 +1,6 @@
 package com.rncamerakit.camera;
 
 import android.content.Context;
-import android.graphics.Color;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.hardware.camera2.CameraAccessException;
@@ -11,17 +10,14 @@ import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.params.StreamConfigurationMap;
+import android.util.Log;
 import android.util.Size;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.WindowManager;
 
-import androidx.annotation.ColorInt;
 import androidx.annotation.Nullable;
 
-import com.facebook.react.bridge.Arguments;
-import com.facebook.react.bridge.WritableMap;
-import com.facebook.react.common.MapBuilder;
 import com.facebook.react.uimanager.SimpleViewManager;
 import com.facebook.react.uimanager.ThemedReactContext;
 import com.facebook.react.uimanager.annotations.ReactProp;
@@ -30,7 +26,6 @@ import com.facebook.react.uimanager.events.RCTEventEmitter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 @SuppressWarnings("MagicNumber")
 public class CameraViewManager extends SimpleViewManager<CameraView> {
@@ -84,23 +79,6 @@ public class CameraViewManager extends SimpleViewManager<CameraView> {
     public static void reconnect() {
         // Placeholder for reconnect logic, if needed in future
     }
-    
-    public static boolean isFrontFacingCamera() {
-        if (cameraDevice == null) {
-            return false;
-        }
-        try {
-            CameraManager cameraManager = (CameraManager) reactContext.getSystemService(Context.CAMERA_SERVICE);
-            CameraCharacteristics characteristics = cameraManager.getCameraCharacteristics(cameraDevice.getId());
-            Integer lensFacing = characteristics.get(CameraCharacteristics.LENS_FACING);
-            return lensFacing != null && lensFacing == CameraCharacteristics.LENS_FACING_FRONT;
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
-            return false;
-        }
-    }
-
-
 
     private static void openCamera(CameraView view) {
         CameraManager cameraManager = (CameraManager) reactContext.getSystemService(Context.CAMERA_SERVICE);
@@ -120,25 +98,28 @@ public class CameraViewManager extends SimpleViewManager<CameraView> {
             cameraManager.openCamera(cameraId, new CameraDevice.StateCallback() {
                 @Override
                 public void onOpened(CameraDevice camera) {
+                    Log.d(TAG, "Camera device opened successfully");
                     cameraDevice = camera;
                     startPreview(view);
                 }
 
                 @Override
                 public void onDisconnected(CameraDevice camera) {
+                    Log.e(TAG, "Camera device disconnected");
                     camera.close();
                     cameraDevice = null;
                 }
 
                 @Override
                 public void onError(CameraDevice camera, int error) {
+                    Log.e(TAG, "Camera device error: " + error);
                     camera.close();
                     cameraDevice = null;
                 }
             }, null);
 
         } catch (CameraAccessException e) {
-            e.printStackTrace();
+            Log.e(TAG, "Failed to open camera", e);
         }
     }
 
@@ -147,7 +128,8 @@ public class CameraViewManager extends SimpleViewManager<CameraView> {
             SurfaceHolder holder = view.getHolder();
             Surface surface = holder.getSurface();
 
-            if (cameraDevice == null || surface == null) {
+            if (cameraDevice == null || surface == null || !surface.isValid()) {
+                Log.e(TAG, "Invalid camera device or surface");
                 return;
             }
 
@@ -166,21 +148,22 @@ public class CameraViewManager extends SimpleViewManager<CameraView> {
             cameraDevice.createCaptureSession(Collections.singletonList(surface), new CameraCaptureSession.StateCallback() {
                 @Override
                 public void onConfigured(CameraCaptureSession session) {
+                    Log.d(TAG, "Capture session configured successfully");
                     captureSession = session;
                     try {
                         captureSession.setRepeatingRequest(previewRequestBuilder.build(), null, null);
                     } catch (CameraAccessException e) {
-                        e.printStackTrace();
+                        Log.e(TAG, "Failed to start camera preview", e);
                     }
                 }
 
                 @Override
                 public void onConfigureFailed(CameraCaptureSession session) {
-                    // Handle failure
+                    Log.e(TAG, "Failed to configure capture session");
                 }
             }, null);
         } catch (CameraAccessException e) {
-            e.printStackTrace();
+            Log.e(TAG, "Failed to start camera preview", e);
         }
     }
 
@@ -204,18 +187,18 @@ public class CameraViewManager extends SimpleViewManager<CameraView> {
         view.setShowFrame(show);
     }
 
-    @ReactProp(name = "frameColor", defaultInt = Color.GREEN)
-    public void setFrameColor(CameraView view, @ColorInt int color) {
+    @ReactProp(name = "frameColor", defaultInt = 0x00FF00)
+    public void setFrameColor(CameraView view, int color) {
         view.setFrameColor(color);
     }
 
-    @ReactProp(name = "laserColor", defaultInt = Color.RED)
-    public void setLaserColor(CameraView view, @ColorInt int color) {
+    @ReactProp(name = "laserColor", defaultInt = 0xFF0000)
+    public void setLaserColor(CameraView view, int color) {
         view.setLaserColor(color);
     }
 
     @ReactProp(name = "surfaceColor")
-    public void setSurfaceBackground(CameraView view, @ColorInt int color) {
+    public void setSurfaceBackground(CameraView view, int color) {
         view.setSurfaceBgColor(color);
     }
 
