@@ -33,48 +33,14 @@ public class CameraView extends FrameLayout implements SurfaceHolder.Callback {
 
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-        int actualPreviewWidth = getWidth();
-        int actualPreviewHeight = getHeight();
-
-        // Get the camera's aspect ratio (replace this with the actual camera aspect ratio)
-        float cameraAspectRatio = 16f / 9f; // Replace with your camera's actual aspect ratio
-        int previewHeight;
-        int previewWidth;
-
-        // Calculate dimensions to maintain aspect ratio
-        if (actualPreviewWidth / (float) actualPreviewHeight > cameraAspectRatio) {
-            // Screen is wider than the camera aspect ratio
-            previewWidth = actualPreviewWidth;
-            previewHeight = (int) (actualPreviewWidth / cameraAspectRatio);
-        } else {
-            // Screen is taller than the camera aspect ratio
-            previewHeight = actualPreviewHeight;
-            previewWidth = (int) (actualPreviewHeight * cameraAspectRatio);
-        }
-
-        // Center the preview if it doesn't fill the entire screen
-        int horizontalOffset = (actualPreviewWidth - previewWidth) / 2;
-        int verticalOffset = (actualPreviewHeight - previewHeight) / 2;
-
-        // Layout the surface view to match the calculated dimensions
-        surface.layout(
-            horizontalOffset,
-            verticalOffset,
-            horizontalOffset + previewWidth,
-            verticalOffset + previewHeight
-        );
-
+        int actualPreviewWidth = getResources().getDisplayMetrics().widthPixels;
+        int actualPreviewHeight = getResources().getDisplayMetrics().heightPixels;
+        int height = Utils.convertDeviceHeightToSupportedAspectRatio(actualPreviewWidth, actualPreviewHeight);
+        surface.layout(0, 0, actualPreviewWidth, height);
         if (barcodeFrame != null) {
-            ((View) barcodeFrame).layout(
-                horizontalOffset,
-                verticalOffset,
-                horizontalOffset + previewWidth,
-                verticalOffset + previewHeight
-            );
+            ((View) barcodeFrame).layout(0, 0, actualPreviewWidth, height);
         }
     }
-
-
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
