@@ -73,6 +73,14 @@ public class CameraViewManager extends SimpleViewManager<CameraView> {
         return captureSession;
     }
 
+    public static Rect getFramingRectInPreview(int width, int height) {
+        CameraView cameraView = getCurrentCameraView();
+        if (cameraView != null) {
+            return cameraView.getFramingRectInPreview(width, height);
+        }
+        return null;
+    }
+
     private static void openCamera(CameraView view) {
         CameraManager cameraManager = (CameraManager) reactContext.getSystemService(Context.CAMERA_SERVICE);
         try {
