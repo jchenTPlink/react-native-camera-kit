@@ -18,11 +18,10 @@ import android.view.WindowManager;
 
 import androidx.annotation.Nullable;
 
+import com.facebook.react.common.MapBuilder;
 import com.facebook.react.uimanager.SimpleViewManager;
 import com.facebook.react.uimanager.ThemedReactContext;
 import com.facebook.react.uimanager.annotations.ReactProp;
-import com.facebook.react.uimanager.events.RCTEventEmitter;
-import com.facebook.react.common.MapBuilder;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -47,10 +46,12 @@ public class CameraViewManager extends SimpleViewManager<CameraView> {
     @Override
     protected CameraView createViewInstance(ThemedReactContext reactContext) {
         CameraViewManager.reactContext = reactContext;
+        Log.d(TAG, "Creating new CameraView instance");
         return new CameraView(reactContext);
     }
 
     public static void setCameraView(CameraView cameraView) {
+        Log.d(TAG, "Setting current CameraView instance");
         currentCameraView = cameraView;
     }
 
@@ -59,6 +60,7 @@ public class CameraViewManager extends SimpleViewManager<CameraView> {
     }
 
     public static void removeCameraView() {
+        Log.d(TAG, "Removing current CameraView instance");
         currentCameraView = null;
     }
 
@@ -79,7 +81,7 @@ public class CameraViewManager extends SimpleViewManager<CameraView> {
     }
 
     public static void reconnect() {
-        // Placeholder for reconnect logic, if needed in future
+        Log.d(TAG, "Reconnecting CameraViewManager");
     }
 
     public static boolean isFrontFacingCamera() {
@@ -92,7 +94,7 @@ public class CameraViewManager extends SimpleViewManager<CameraView> {
             Integer lensFacing = characteristics.get(CameraCharacteristics.LENS_FACING);
             return lensFacing != null && lensFacing == CameraCharacteristics.LENS_FACING_FRONT;
         } catch (CameraAccessException e) {
-            e.printStackTrace();
+            Log.e(TAG, "Error checking camera facing direction", e);
             return false;
         }
     }
@@ -113,6 +115,7 @@ public class CameraViewManager extends SimpleViewManager<CameraView> {
                 }
             }
 
+            Log.d(TAG, "Opening camera with ID: " + cameraId);
             cameraManager.openCamera(cameraId, new CameraDevice.StateCallback() {
                 @Override
                 public void onOpened(CameraDevice camera) {
@@ -158,6 +161,7 @@ public class CameraViewManager extends SimpleViewManager<CameraView> {
             Size[] supportedSizes = map.getOutputSizes(SurfaceHolder.class);
             Size optimalSize = chooseOptimalSize(supportedSizes, view.getWidth(), view.getHeight());
 
+            Log.d(TAG, "Setting preview size to: " + optimalSize.getWidth() + "x" + optimalSize.getHeight());
             holder.setFixedSize(optimalSize.getWidth(), optimalSize.getHeight());
 
             previewRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
