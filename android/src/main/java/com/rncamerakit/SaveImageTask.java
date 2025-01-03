@@ -185,22 +185,22 @@ public class SaveImageTask extends AsyncTask<byte[], Void, Void> {
         return matrix;
     }
 
-    private boolean isFrontFacingCamera() {
-        CameraManager cameraManager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
-        try {
-            String[] cameraIdList = cameraManager.getCameraIdList();
-            for (String id : cameraIdList) {
-                CameraCharacteristics characteristics = cameraManager.getCameraCharacteristics(id);
-                Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
-                if (facing != null && facing == CameraCharacteristics.LENS_FACING_FRONT) {
-                    return true;
-                }
-            }
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
-        }
-        return false;
-    }
+    // private boolean isFrontFacingCamera() {
+    //     CameraManager cameraManager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
+    //     try {
+    //         String[] cameraIdList = cameraManager.getCameraIdList();
+    //         for (String id : cameraIdList) {
+    //             CameraCharacteristics characteristics = cameraManager.getCameraCharacteristics(id);
+    //             Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
+    //             if (facing != null && facing == CameraCharacteristics.LENS_FACING_FRONT) {
+    //                 return true;
+    //             }
+    //         }
+    //     } catch (CameraAccessException e) {
+    //         e.printStackTrace();
+    //     }
+    //     return false;
+    // }
 
     private void convertExifOrientationToMatrix(Matrix matrix, int exifOrientation, boolean isCameraFacingFront) {
         switch (exifOrientation) {
