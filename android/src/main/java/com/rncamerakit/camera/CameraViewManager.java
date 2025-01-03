@@ -22,6 +22,7 @@ import com.facebook.react.uimanager.SimpleViewManager;
 import com.facebook.react.uimanager.ThemedReactContext;
 import com.facebook.react.uimanager.annotations.ReactProp;
 import com.facebook.react.uimanager.events.RCTEventEmitter;
+import com.facebook.react.common.MapBuilder;
 
 import java.util.ArrayList;
 import java.util.Collections;
