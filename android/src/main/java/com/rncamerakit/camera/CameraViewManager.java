@@ -255,26 +255,26 @@ public class CameraViewManager extends SimpleViewManager<CameraView> {
     private static void updateCameraSize() {
         try {
             Camera camera = CameraViewManager.getCamera();
+            if (camera == null) return;
 
             WindowManager wm = (WindowManager) reactContext.getSystemService(Context.WINDOW_SERVICE);
             Display display = wm.getDefaultDisplay();
             Point size = new Point();
             display.getSize(size);
-            size.y = Utils.convertDeviceHeightToSupportedAspectRatio(size.x, size.y);
-            if (camera == null) return;
-            List<Camera.Size> supportedPreviewSizes = camera.getParameters().getSupportedPreviewSizes();
-            List<Camera.Size> supportedPictureSizes = camera.getParameters().getSupportedPictureSizes();
-            Camera.Size optimalSize = getOptimalPreviewSize(supportedPreviewSizes, size.x, size.y);
-            Camera.Size optimalPictureSize = getOptimalPreviewSize(supportedPictureSizes, size.x, size.y);
+
+            // Get the supported aspect ratio
             Camera.Parameters parameters = camera.getParameters();
-            parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
-            parameters.setPreviewSize(optimalSize.width, optimalSize.height);
-            parameters.setPictureSize(optimalPictureSize.width, optimalPictureSize.height);
-            parameters.setFlashMode(flashMode);
-            camera.setParameters(parameters);
+            List<Camera.Size> supportedSizes = parameters.getSupportedPreviewSizes();
+            Camera.Size optimalSize = getOptimalPreviewSize(supportedSizes, size.x, size.y);
+
+            if (optimalSize != null) {
+                parameters.setPreviewSize(optimalSize.width, optimalSize.height);
+                camera.setParameters(parameters);
+            }
         } catch (RuntimeException ignored) {
         }
     }
+
 
     public static void reconnect() {
         connectHolder();
