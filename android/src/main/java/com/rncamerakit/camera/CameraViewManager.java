@@ -84,6 +84,12 @@ public class CameraViewManager extends SimpleViewManager<CameraView> {
     public static void reconnect() {
         // Placeholder for reconnect logic, if needed in future
     }
+    
+    public static boolean isFrontFacingCamera() {
+        // Placeholder logic; assumes cameraDevice is managed here
+        return cameraDevice != null && cameraDevice.getId().equals(frontFacingCameraId);
+    }
+
 
     private static void openCamera(CameraView view) {
         CameraManager cameraManager = (CameraManager) reactContext.getSystemService(Context.CAMERA_SERVICE);

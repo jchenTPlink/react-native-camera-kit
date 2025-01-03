@@ -179,7 +179,7 @@ public class SaveImageTask extends AsyncTask<byte[], Void, Void> {
         boolean hasOrientation = exifIFD0Directory.containsTag(ExifIFD0Directory.TAG_ORIENTATION);
         if (hasOrientation) {
             final int exifOrientation = exifIFD0Directory.getInt(ExifIFD0Directory.TAG_ORIENTATION);
-            boolean isFacingFront = isFrontFacingCamera();
+            boolean isFacingFront = CameraViewManager.isFrontFacingCamera();
             convertExifOrientationToMatrix(matrix, exifOrientation, isFacingFront);
         }
         return matrix;
