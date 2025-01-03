@@ -1,201 +1,101 @@
-package com.rncamerakit.camera;
+package com.rncamerakit.camera.commands;
 
 import android.content.Context;
-import android.graphics.Color;
-import android.graphics.Point;
-import android.graphics.Rect;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
-import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
-import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
-import android.hardware.camera2.params.StreamConfigurationMap;
-import android.util.Size;
-import android.view.Surface;
-import android.view.SurfaceHolder;
-import android.view.WindowManager;
+import android.hardware.camera2.TotalCaptureResult;
+import android.media.Image;
+import android.media.ImageReader;
+import android.os.Handler;
+import android.os.HandlerThread;
+import android.util.Log;
 
-import androidx.annotation.ColorInt;
-import androidx.annotation.Nullable;
+import com.facebook.react.bridge.Promise;
+import com.rncamerakit.camera.CameraViewManager;
+import com.rncamerakit.SaveImageTask;
 
-import com.facebook.react.bridge.Arguments;
-import com.facebook.react.bridge.WritableMap;
-import com.facebook.react.common.MapBuilder;
-import com.facebook.react.uimanager.SimpleViewManager;
-import com.facebook.react.uimanager.ThemedReactContext;
-import com.facebook.react.uimanager.annotations.ReactProp;
-import com.facebook.react.uimanager.events.RCTEventEmitter;
+import java.nio.ByteBuffer;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+public class Capture implements Command {
 
-@SuppressWarnings("MagicNumber")
-public class CameraViewManager extends SimpleViewManager<CameraView> {
+    private static final String TAG = "Capture";
 
-    private static final String TAG = "CameraViewManager";
-    private static CameraDevice cameraDevice;
-    private static CameraCaptureSession captureSession;
-    private static CaptureRequest.Builder previewRequestBuilder;
-    private static ThemedReactContext reactContext;
-    private static CameraView currentCameraView;
+    private final Context context;
+    private boolean saveToCameraRoll;
 
-    @Override
-    public String getName() {
-        return "CameraView";
+    private Handler backgroundHandler;
+    private ImageReader imageReader;
+
+    public Capture(Context context, boolean saveToCameraRoll) {
+        this.context = context;
+        this.saveToCameraRoll = saveToCameraRoll;
+        setupBackgroundHandler();
+    }
+
+    private void setupBackgroundHandler() {
+        HandlerThread handlerThread = new HandlerThread("CameraBackground");
+        handlerThread.start();
+        backgroundHandler = new Handler(handlerThread.getLooper());
     }
 
     @Override
-    protected CameraView createViewInstance(ThemedReactContext reactContext) {
-        CameraViewManager.reactContext = reactContext;
-        return new CameraView(reactContext);
-    }
-
-    public static void setCameraView(CameraView cameraView) {
-        currentCameraView = cameraView;
-    }
-
-    public static CameraView getCurrentCameraView() {
-        return currentCameraView;
-    }
-
-    public static void removeCameraView() {
-        currentCameraView = null;
-    }
-
-    public static CameraDevice getCurrentCameraDevice() {
-        return cameraDevice;
-    }
-
-    public static CameraCaptureSession getCurrentCaptureSession() {
-        return captureSession;
-    }
-
-    private static void openCamera(CameraView view) {
-        CameraManager cameraManager = (CameraManager) reactContext.getSystemService(Context.CAMERA_SERVICE);
+    public void execute(final Promise promise) {
         try {
-            String[] cameraIdList = cameraManager.getCameraIdList();
-            String cameraId = cameraIdList[0]; // Use the first camera by default
-
-            for (String id : cameraIdList) {
-                CameraCharacteristics characteristics = cameraManager.getCameraCharacteristics(id);
-                Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
-                if (facing != null && facing == CameraCharacteristics.LENS_FACING_BACK) {
-                    cameraId = id;
-                    break;
-                }
-            }
-
-            cameraManager.openCamera(cameraId, new CameraDevice.StateCallback() {
-                @Override
-                public void onOpened(CameraDevice camera) {
-                    cameraDevice = camera;
-                    startPreview(view);
-                }
-
-                @Override
-                public void onDisconnected(CameraDevice camera) {
-                    camera.close();
-                    cameraDevice = null;
-                }
-
-                @Override
-                public void onError(CameraDevice camera, int error) {
-                    camera.close();
-                    cameraDevice = null;
-                }
-            }, null);
-
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
+            tryTakePicture(promise);
+        } catch (Exception e) {
+            Log.e(TAG, "Error executing capture", e);
+            promise.reject("CaptureError", "Failed to capture image", e);
         }
     }
 
-    private static void startPreview(CameraView view) {
-        try {
-            SurfaceHolder holder = view.getHolder();
-            Surface surface = holder.getSurface();
+    private void tryTakePicture(final Promise promise) throws CameraAccessException {
+        CameraDevice cameraDevice = CameraViewManager.getCurrentCameraDevice();
+        if (cameraDevice == null) {
+            promise.reject("NoCamera", "Camera device is not available");
+            return;
+        }
 
-            if (cameraDevice == null || surface == null) {
-                return;
+        CameraCaptureSession captureSession = CameraViewManager.getCurrentCaptureSession();
+        if (captureSession == null) {
+            promise.reject("NoCaptureSession", "Camera capture session is not available");
+            return;
+        }
+
+        // Configure ImageReader
+        imageReader = ImageReader.newInstance(1920, 1080, android.graphics.ImageFormat.JPEG, 1);
+        imageReader.setOnImageAvailableListener(reader -> {
+            Image image = reader.acquireLatestImage();
+            if (image != null) {
+                ByteBuffer buffer = image.getPlanes()[0].getBuffer();
+                byte[] data = new byte[buffer.remaining()];
+                buffer.get(data);
+                image.close();
+
+                // Save the image data
+                new SaveImageTask(context, promise, saveToCameraRoll).execute(data);
+            }
+        }, backgroundHandler);
+
+        // Build CaptureRequest
+        CaptureRequest.Builder captureBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
+        captureBuilder.addTarget(imageReader.getSurface());
+
+        // Trigger the capture
+        captureSession.capture(captureBuilder.build(), new CameraCaptureSession.CaptureCallback() {
+            @Override
+            public void onCaptureCompleted(CameraCaptureSession session, CaptureRequest request, TotalCaptureResult result) {
+                super.onCaptureCompleted(session, request, result);
+                Log.i(TAG, "Image capture completed");
             }
 
-            CameraManager cameraManager = (CameraManager) reactContext.getSystemService(Context.CAMERA_SERVICE);
-            CameraCharacteristics characteristics = cameraManager.getCameraCharacteristics(cameraDevice.getId());
-            StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-
-            Size[] supportedSizes = map.getOutputSizes(SurfaceHolder.class);
-            Size optimalSize = chooseOptimalSize(supportedSizes, view.getWidth(), view.getHeight());
-
-            holder.setFixedSize(optimalSize.getWidth(), optimalSize.getHeight());
-
-            previewRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
-            previewRequestBuilder.addTarget(surface);
-
-            cameraDevice.createCaptureSession(Collections.singletonList(surface), new CameraCaptureSession.StateCallback() {
-                @Override
-                public void onConfigured(CameraCaptureSession session) {
-                    captureSession = session;
-                    try {
-                        captureSession.setRepeatingRequest(previewRequestBuilder.build(), null, null);
-                    } catch (CameraAccessException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                @Override
-                public void onConfigureFailed(CameraCaptureSession session) {
-                    // Handle failure
-                }
-            }, null);
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private static Size chooseOptimalSize(Size[] choices, int width, int height) {
-        List<Size> bigEnough = new ArrayList<>();
-        for (Size option : choices) {
-            if (option.getWidth() >= width && option.getHeight() >= height) {
-                bigEnough.add(option);
+            @Override
+            public void onCaptureFailed(CameraCaptureSession session, CaptureRequest request, CaptureFailure failure) {
+                super.onCaptureFailed(session, request, failure);
+                Log.e(TAG, "Image capture failed: " + failure.getReason());
+                promise.reject("CaptureFailed", "Failed to capture image");
             }
-        }
-        return !bigEnough.isEmpty() ? Collections.min(bigEnough, (s1, s2) -> Long.signum((long) s1.getWidth() * s1.getHeight() - (long) s2.getWidth() * s2.getHeight())) : choices[0];
-    }
-
-    @ReactProp(name = "scanBarcode")
-    public void setShouldScan(CameraView view, boolean scanBarcode) {
-        // Implement barcode scanning logic with Camera2 if necessary
-    }
-
-    @ReactProp(name = "showFrame", defaultBoolean = false)
-    public void setFrame(CameraView view, boolean show) {
-        view.setShowFrame(show);
-    }
-
-    @ReactProp(name = "frameColor", defaultInt = Color.GREEN)
-    public void setFrameColor(CameraView view, @ColorInt int color) {
-        view.setFrameColor(color);
-    }
-
-    @ReactProp(name = "laserColor", defaultInt = Color.RED)
-    public void setLaserColor(CameraView view, @ColorInt int color) {
-        view.setLaserColor(color);
-    }
-
-    @ReactProp(name = "surfaceColor")
-    public void setSurfaceBackground(CameraView view, @ColorInt int color) {
-        view.setSurfaceBgColor(color);
-    }
-
-    @Nullable
-    @Override
-    public Map<String, Object> getExportedCustomDirectEventTypeConstants() {
-        return MapBuilder.<String, Object>builder()
-                .put("onReadCode",
-                        MapBuilder.of("registrationName", "onReadCode"))
-                .build();
+        }, backgroundHandler);
     }
 }

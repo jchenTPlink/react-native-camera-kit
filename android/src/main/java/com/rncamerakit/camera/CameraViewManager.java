@@ -65,6 +65,14 @@ public class CameraViewManager extends SimpleViewManager<CameraView> {
         currentCameraView = null;
     }
 
+    public static CameraDevice getCurrentCameraDevice() {
+        return cameraDevice;
+    }
+
+    public static CameraCaptureSession getCurrentCaptureSession() {
+        return captureSession;
+    }
+
     private static void openCamera(CameraView view) {
         CameraManager cameraManager = (CameraManager) reactContext.getSystemService(Context.CAMERA_SERVICE);
         try {
