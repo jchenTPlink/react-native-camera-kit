@@ -86,9 +86,20 @@ public class CameraViewManager extends SimpleViewManager<CameraView> {
     }
     
     public static boolean isFrontFacingCamera() {
-        // Placeholder logic; assumes cameraDevice is managed here
-        return cameraDevice != null && cameraDevice.getId().equals(frontFacingCameraId);
+        if (cameraDevice == null) {
+            return false;
+        }
+        try {
+            CameraManager cameraManager = (CameraManager) reactContext.getSystemService(Context.CAMERA_SERVICE);
+            CameraCharacteristics characteristics = cameraManager.getCameraCharacteristics(cameraDevice.getId());
+            Integer lensFacing = characteristics.get(CameraCharacteristics.LENS_FACING);
+            return lensFacing != null && lensFacing == CameraCharacteristics.LENS_FACING_FRONT;
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+            return false;
+        }
     }
+
 
 
     private static void openCamera(CameraView view) {
