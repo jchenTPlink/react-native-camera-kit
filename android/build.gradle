@@ -1,28 +1,25 @@
 apply plugin: 'com.android.library'
 
 android {
-    compileSdkVersion 33 // Updated to a more recent version
+    compileSdkVersion 28
 
     defaultConfig {
-        minSdkVersion 21 // Updated to align with modern standards
-        targetSdkVersion 33 // Updated to a more recent version
+        minSdkVersion 16
+        targetSdkVersion 28
         versionCode 1
         versionName "1.0"
         ndk {
-            abiFilters "armeabi-v7a", "x86" // Consider adding arm64-v8a for wider compatibility
+            abiFilters "armeabi-v7a", "x86"
         }
     }
     lintOptions {
         warning 'InvalidPackage'
     }
-    buildFeatures {
-        viewBinding true
-    }
 }
 
 dependencies {
-    implementation 'com.facebook.react:react-native:+' // Keep this for React Native compatibility
-    implementation 'androidx.recyclerview:recyclerview:1.3.0' // Updated to a newer version
-    implementation 'com.google.zxing:core:3.5.0' // Updated to a newer version
-    implementation 'com.drewnoakes:metadata-extractor:2.18.0' // Updated to a newer version
+    implementation 'com.facebook.react:react-native:+'
+    implementation 'androidx.recyclerview:recyclerview:1.0.0'
+    implementation 'com.google.zxing:core:3.4.0'
+    implementation group: 'com.drewnoakes', name: 'metadata-extractor', version: '2.12.0'
 }
