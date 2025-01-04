@@ -17,6 +17,7 @@ android {
         warning 'InvalidPackage'
     }
 }
+//jchen random comment
 
 dependencies {
     implementation 'com.facebook.react:react-native:+'
