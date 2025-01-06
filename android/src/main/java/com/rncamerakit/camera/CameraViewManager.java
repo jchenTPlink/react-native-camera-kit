@@ -33,6 +33,28 @@ public class CameraViewManager extends SimpleViewManager<PreviewView> {
         return REACT_CLASS;
     }
 
+    static void setCameraView(CameraView cameraView) {
+        if (!cameraViews.isEmpty() && cameraViews.peek() == cameraView) return;
+        CameraViewManager.cameraViews.push(cameraView);
+        connectHolder();
+        createOrientationListener();
+    }
+
+    static void removeCameraView() {
+        if (!cameraViews.isEmpty()) {
+            cameraViews.pop();
+        }
+        if (!cameraViews.isEmpty()) {
+            connectHolder();
+        } else if (camera != null) {
+            releaseCamera();
+            camera = null;
+        }
+        if (cameraViews.isEmpty()) {
+            clearOrientationListener();
+        }
+    }
+
     @NonNull
     @Override
     protected PreviewView createViewInstance(@NonNull ThemedReactContext reactContext) {
