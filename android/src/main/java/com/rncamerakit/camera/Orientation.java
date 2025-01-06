@@ -1,74 +1,71 @@
 package com.rncamerakit.camera;
 
-import android.app.Activity;
-import android.hardware.Camera;
+import android.content.Context;
+import android.util.DisplayMetrics;
+import android.util.Log;
 import android.view.Surface;
+import android.view.WindowManager;
+import androidx.camera.core.CameraSelector;
+import androidx.camera.core.ImageAnalysis;
+import androidx.camera.lifecycle.ProcessCameraProvider;
+import androidx.core.content.ContextCompat;
 
-import com.rncamerakit.DeviceUtils;
+public class Orientation {
 
-import static com.rncamerakit.camera.CameraViewManager.getCameraInfo;
+    private static final String TAG = "Orientation";
 
-@SuppressWarnings({"MagicNumber", "deprecation"})
-class Orientation {
-    private static final int PORTRAIT_ROTATION = 90;
+    /**
+     * Calculates the rotation for the use case based on the device's current rotation.
+     *
+     * @param context the context to access display metrics.
+     * @return the rotation constant for CameraX use cases.
+     */
+    public static int getRotation(Context context) {
+        WindowManager windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+        if (windowManager == null) {
+            Log.e(TAG, "Unable to retrieve WindowManager");
+            return Surface.ROTATION_0; // Default rotation
+        }
 
-    static int getDeviceOrientation(Activity activity) {
-        if (activity == null) return PORTRAIT_ROTATION;
-        int rotation = activity.getWindowManager().getDefaultDisplay().getRotation();
-        Camera.CameraInfo info = getCameraInfo();
-        int degrees = 0;
+        int rotation = windowManager.getDefaultDisplay().getRotation();
         switch (rotation) {
-            case Surface.ROTATION_0: degrees = 0; break;
-            case Surface.ROTATION_90: degrees = 90; break;
-            case Surface.ROTATION_180: degrees = 180; break;
-            case Surface.ROTATION_270: degrees = 270; break;
+            case Surface.ROTATION_0:
+                return Surface.ROTATION_0;
+            case Surface.ROTATION_90:
+                return Surface.ROTATION_90;
+            case Surface.ROTATION_180:
+                return Surface.ROTATION_180;
+            case Surface.ROTATION_270:
+                return Surface.ROTATION_270;
+            default:
+                return Surface.ROTATION_0;
         }
-
-        int result;
-        if (info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
-            result = (info.orientation + degrees) % 360;
-            result = (360 - result) % 360;  // compensate the mirror
-        } else {  // back-facing
-            result = (info.orientation - degrees + 360) % 360;
-        }
-        return result;
     }
 
-    static int getSupportedRotation(int rotation) {
-        int degrees = convertRotationToSupportedAxis(rotation);
-        return isFrontFacingCamera() ? adaptFrontCamera(degrees) : adaptBackCamera(degrees);
+    /**
+     * Determines the CameraSelector lens facing direction.
+     *
+     * @param isFrontFacing boolean indicating if the front-facing camera is desired.
+     * @return CameraSelector.LENS_FACING_FRONT or CameraSelector.LENS_FACING_BACK
+     */
+    public static int getLensFacing(boolean isFrontFacing) {
+        return isFrontFacing ? CameraSelector.LENS_FACING_FRONT : CameraSelector.LENS_FACING_BACK;
     }
 
-    private static int convertRotationToSupportedAxis(int rotation) {
-        if (rotation < 45) {
-            return 0;
-        } else if (rotation < 135) {
-            return  90;
-        } else if (rotation < 225) {
-            return 180;
-        } else if (rotation < 315){
-            return 270;
-        }
-        return 0;
-    }
-
-    private static boolean isFrontFacingCamera() {
-        return getCameraInfo().facing == Camera.CameraInfo.CAMERA_FACING_FRONT;
-    }
-
-    private static int adaptBackCamera(int degrees) {
-        return (getCameraInfo().orientation - degrees + 360) % 360;
-    }
-
-    private static int adaptFrontCamera(int degrees) {
-        if (DeviceUtils.isGoogleDevice()) {
-            int result = (getCameraInfo().orientation + degrees) % 360;
-            result = (result) % 360;  // compensate the mirror
-            return result;
+    /**
+     * Retrieves the optimal target resolution for the camera use case.
+     *
+     * @param context the context to access display metrics.
+     * @return a DisplayMetrics object containing width and height.
+     */
+    public static DisplayMetrics getTargetResolution(Context context) {
+        DisplayMetrics metrics = new DisplayMetrics();
+        WindowManager windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+        if (windowManager != null) {
+            windowManager.getDefaultDisplay().getMetrics(metrics);
         } else {
-            int result = (getCameraInfo().orientation + degrees + 180) % 360;
-            result = (result) % 360;  // compensate the mirror
-            return result;
+            Log.e(TAG, "Unable to retrieve WindowManager");
         }
+        return metrics;
     }
 }

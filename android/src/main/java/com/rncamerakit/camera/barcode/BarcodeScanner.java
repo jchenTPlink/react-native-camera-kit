@@ -1,145 +1,83 @@
 package com.rncamerakit.camera.barcode;
 
-
-import android.graphics.Rect;
-import android.hardware.Camera;
-import android.os.Handler;
-import android.os.Looper;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+import android.content.Context;
 import android.util.Log;
+import android.util.Size;
+import android.view.Surface;
 
-import com.google.zxing.BarcodeFormat;
-import com.google.zxing.BinaryBitmap;
-import com.google.zxing.DecodeHintType;
-import com.google.zxing.LuminanceSource;
-import com.google.zxing.MultiFormatReader;
-import com.google.zxing.ReaderException;
-import com.google.zxing.Result;
-import com.google.zxing.common.HybridBinarizer;
-import com.rncamerakit.camera.CameraViewManager;
+import androidx.annotation.NonNull;
+import androidx.camera.core.CameraSelector;
+import androidx.camera.core.ImageAnalysis;
+import androidx.camera.core.ImageProxy;
+import androidx.camera.lifecycle.ProcessCameraProvider;
+import androidx.lifecycle.LifecycleOwner;
 
-import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
+import com.google.common.util.concurrent.ListenableFuture;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class BarcodeScanner {
 
-    public interface ResultHandler {
-        void handleResult(Result result);
+    private static final String TAG = "BarcodeScanner";
+    private final ExecutorService cameraExecutor;
+    private final Context context;
+    private ImageAnalysis imageAnalysis;
+
+    public BarcodeScanner(Context context) {
+        this.context = context;
+        this.cameraExecutor = Executors.newSingleThreadExecutor();
     }
 
-    private MultiFormatReader mMultiFormatReader;
-    private static final List<BarcodeFormat> ALL_FORMATS = new ArrayList<>();
-    private ResultHandler resultHandler;
+    public void startScanning(LifecycleOwner lifecycleOwner) {
+        ListenableFuture<ProcessCameraProvider> cameraProviderFuture =
+                ProcessCameraProvider.getInstance(context);
 
-    private Camera.PreviewCallback previewCallback;
-
-    static {
-        ALL_FORMATS.add(BarcodeFormat.AZTEC);
-        ALL_FORMATS.add(BarcodeFormat.CODABAR);
-        ALL_FORMATS.add(BarcodeFormat.CODE_39);
-        ALL_FORMATS.add(BarcodeFormat.CODE_93);
-        ALL_FORMATS.add(BarcodeFormat.CODE_128);
-        ALL_FORMATS.add(BarcodeFormat.DATA_MATRIX);
-        ALL_FORMATS.add(BarcodeFormat.EAN_8);
-        ALL_FORMATS.add(BarcodeFormat.EAN_13);
-        ALL_FORMATS.add(BarcodeFormat.ITF);
-        ALL_FORMATS.add(BarcodeFormat.MAXICODE);
-        ALL_FORMATS.add(BarcodeFormat.PDF_417);
-        ALL_FORMATS.add(BarcodeFormat.QR_CODE);
-        ALL_FORMATS.add(BarcodeFormat.RSS_14);
-        ALL_FORMATS.add(BarcodeFormat.RSS_EXPANDED);
-        ALL_FORMATS.add(BarcodeFormat.UPC_A);
-        ALL_FORMATS.add(BarcodeFormat.UPC_E);
-        ALL_FORMATS.add(BarcodeFormat.UPC_EAN_EXTENSION);
-    }
-
-    public BarcodeScanner(@NonNull Camera.PreviewCallback previewCallback, @NonNull ResultHandler resultHandler) {
-        Map<DecodeHintType, Object> hints = new EnumMap<>(DecodeHintType.class);
-        hints.put(DecodeHintType.POSSIBLE_FORMATS, ALL_FORMATS);
-        mMultiFormatReader = new MultiFormatReader();
-        mMultiFormatReader.setHints(hints);
-
-        this.previewCallback = previewCallback;
-        this.resultHandler = resultHandler;
-    }
-
-    public void onPreviewFrame(byte[] data, final Camera camera) {
-        try {
-            Camera.Size size = camera.getParameters().getPreviewSize();
-            int width = size.width;
-            int height = size.height;
-
-            int tmp = width;
-            width = height;
-            height = tmp;
-            data = getRotatedData(data, camera);
-
-            final Result result = decodeResult(getLuminanceSource(data, width, height));
-
-            if (result != null) {
-                new Handler(Looper.getMainLooper()).post(new Runnable() {
-                    @Override
-                    public void run() {
-                        resultHandler.handleResult(result);
-                    }
-                });
-            }
-            camera.setOneShotPreviewCallback(previewCallback);
-        } catch (RuntimeException e) {
-            Log.w("CameraKit", e.toString());
-        }
-    }
-
-    @Nullable
-    private Result decodeResult(LuminanceSource source) {
-        Result rawResult = null;
-        if (source != null) {
-            BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(source));
+        cameraProviderFuture.addListener(() -> {
             try {
-                rawResult = mMultiFormatReader.decodeWithState(bitmap);
-            } catch (ReaderException ignored) {
-            } finally {
-                mMultiFormatReader.reset();
-            }
+                ProcessCameraProvider cameraProvider = cameraProviderFuture.get();
 
-            if (rawResult == null && source.isRotateSupported()) {
-                LuminanceSource rotatedSource = source.rotateCounterClockwise();
-                bitmap = new BinaryBitmap(new HybridBinarizer(rotatedSource));
-                try {
-                    rawResult = mMultiFormatReader.decodeWithState(bitmap);
-                } catch (ReaderException ignored) {
-                } finally {
-                    mMultiFormatReader.reset();
-                }
+                // Set up the ImageAnalysis use case
+                imageAnalysis = new ImageAnalysis.Builder()
+                        .setTargetResolution(new Size(1280, 720)) // Example resolution
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .build();
+
+                imageAnalysis.setAnalyzer(cameraExecutor, this::analyzeImage);
+
+                // Bind the camera to the lifecycle owner
+                CameraSelector cameraSelector = new CameraSelector.Builder()
+                        .requireLensFacing(CameraSelector.LENS_FACING_BACK)
+                        .build();
+
+                cameraProvider.unbindAll();
+                cameraProvider.bindToLifecycle(
+                        lifecycleOwner,
+                        cameraSelector,
+                        imageAnalysis
+                );
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error starting camera: ", e);
             }
-        }
-        return rawResult;
+        }, ContextCompat.getMainExecutor(context));
     }
 
-    private LuminanceSource getLuminanceSource(byte[] data, int width, int height) {
-        Rect rect = CameraViewManager.getFramingRectInPreview(width, height);
+    private void analyzeImage(@NonNull ImageProxy image) {
         try {
-            return new RotateLuminanceSource(data, width, height, rect.left, rect.top,
-                    rect.width(), rect.height(), false);
-        } catch (Exception e) {
-            e.printStackTrace();
+            // TODO: Implement barcode scanning logic here using an external library like ML Kit
+            // Placeholder for analysis logic
+            Log.d(TAG, "Analyzing image...");
+        } finally {
+            image.close();
         }
-        return null;
     }
 
-    private byte[] getRotatedData(byte[] data, Camera camera) {
-        Camera.Size size = camera.getParameters().getPreviewSize();
-        int width = size.width;
-        int height = size.height;
-
-        byte[] rotatedData = new byte[data.length];
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++)
-                rotatedData[x * height + height - y - 1] = data[x + y * width];
+    public void stopScanning() {
+        if (imageAnalysis != null) {
+            imageAnalysis.clearAnalyzer();
+            imageAnalysis = null;
         }
-        return rotatedData;
+        cameraExecutor.shutdown();
     }
 }
