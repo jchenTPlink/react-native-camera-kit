@@ -8,7 +8,7 @@ import com.facebook.react.bridge.NativeModule;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.uimanager.ViewManager;
 import com.rncamerakit.camera.CameraModule;
-import com.rncamerakit.camera.CameraViewManager;
+import com.rncamerakit.camera.CameraXViewManager;
 import com.rncamerakit.camera.permission.CameraPermissionRequestCallback;
 import com.rncamerakit.gallery.GalleryViewManager;
 import com.rncamerakit.gallery.NativeGalleryModule;
@@ -60,7 +60,7 @@ public class RNCameraKitPackage implements ReactPackage {
     public List<ViewManager> createViewManagers(ReactApplicationContext reactContext) {
         List<ViewManager> viewManagers = new ArrayList<>();
         viewManagers.add(new GalleryViewManager());
-        viewManagers.add(new CameraViewManager());
+        viewManagers.add(new CameraXViewManager());
         return viewManagers;
     }
 

@@ -114,7 +114,7 @@ public class SaveImageTask extends AsyncTask<byte[], Void, Void> {
             promise.reject("CameraKit", "failed to save image to MediaStore");
         else {
             promise.resolve(imageInfo);
-            CameraViewManager.reconnect();
+            //CameraViewManager.reconnect();
         }
         return null;
     }
@@ -179,8 +179,8 @@ public class SaveImageTask extends AsyncTask<byte[], Void, Void> {
         boolean hasOrientation = exifIFD0Directory.containsTag(ExifIFD0Directory.TAG_ORIENTATION);
         if (hasOrientation) {
             final int exifOrientation = exifIFD0Directory.getInt(ExifIFD0Directory.TAG_ORIENTATION);
-            boolean isFacingFront = CameraViewManager.getCameraInfo().facing == Camera.CameraInfo.CAMERA_FACING_FRONT;
-            convertExifOrientationToMatrix(matrix, exifOrientation, isFacingFront);
+            //boolean isFacingFront = CameraViewManager.getCameraInfo().facing == Camera.CameraInfo.CAMERA_FACING_FRONT;
+            convertExifOrientationToMatrix(matrix, exifOrientation, false);
         }
         return matrix;
     }
