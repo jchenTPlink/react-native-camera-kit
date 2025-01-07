@@ -8,7 +8,7 @@ import com.facebook.react.bridge.NativeModule;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.uimanager.ViewManager;
 import com.rncamerakit.camera.CameraModule;
-import com.rncamerakit.camerax;
+import com.rncamerakit.camerax.CameraXViewManager;
 import com.rncamerakit.camera.permission.CameraPermissionRequestCallback;
 import com.rncamerakit.gallery.GalleryViewManager;
 import com.rncamerakit.gallery.NativeGalleryModule;
