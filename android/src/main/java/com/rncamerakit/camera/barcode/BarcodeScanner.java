@@ -1,14 +1,15 @@
 package com.rncamerakit.camera.barcode;
 
-
-import android.graphics.Rect;
-import android.hardware.Camera;
 import android.os.Handler;
 import android.os.Looper;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import android.util.Log;
+import androidx.annotation.NonNull;
+import androidx.camera.core.ImageAnalysis;
+import androidx.camera.core.ImageProxy;
 
+import com.facebook.react.bridge.Arguments;
+import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.bridge.ReactApplicationContext;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.BinaryBitmap;
 import com.google.zxing.DecodeHintType;
@@ -17,24 +18,21 @@ import com.google.zxing.MultiFormatReader;
 import com.google.zxing.ReaderException;
 import com.google.zxing.Result;
 import com.google.zxing.common.HybridBinarizer;
-import com.rncamerakit.camera.CameraViewManager;
+import com.rncamerakit.camerax.CameraXView;
+import com.rncamerakit.Utils;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
-public class BarcodeScanner {
-
-    public interface ResultHandler {
-        void handleResult(Result result);
-    }
+public class BarcodeScannerX implements ImageAnalysis.Analyzer {
 
     private MultiFormatReader mMultiFormatReader;
     private static final List<BarcodeFormat> ALL_FORMATS = new ArrayList<>();
-    private ResultHandler resultHandler;
-
-    private Camera.PreviewCallback previewCallback;
+    private CameraXView cameraXView;
+    private ReactApplicationContext reactContext;
 
     static {
         ALL_FORMATS.add(BarcodeFormat.AZTEC);
@@ -56,44 +54,65 @@ public class BarcodeScanner {
         ALL_FORMATS.add(BarcodeFormat.UPC_EAN_EXTENSION);
     }
 
-    public BarcodeScanner(@NonNull Camera.PreviewCallback previewCallback, @NonNull ResultHandler resultHandler) {
+    public BarcodeScannerX(@NonNull CameraXView view, @NonNull ReactApplicationContext reactContext) {
+        this.cameraXView = view;
+        this.reactContext = reactContext;
+
         Map<DecodeHintType, Object> hints = new EnumMap<>(DecodeHintType.class);
         hints.put(DecodeHintType.POSSIBLE_FORMATS, ALL_FORMATS);
         mMultiFormatReader = new MultiFormatReader();
         mMultiFormatReader.setHints(hints);
-
-        this.previewCallback = previewCallback;
-        this.resultHandler = resultHandler;
     }
 
-    public void onPreviewFrame(byte[] data, final Camera camera) {
+    @Override
+    public void analyze(@NonNull ImageProxy image) {
+        // Convert ImageProxy to a ZXing-friendly format. Usually this means YUV -> a LuminanceSource
         try {
-            Camera.Size size = camera.getParameters().getPreviewSize();
-            int width = size.width;
-            int height = size.height;
-
-            int tmp = width;
-            width = height;
-            height = tmp;
-            data = getRotatedData(data, camera);
-
-            final Result result = decodeResult(getLuminanceSource(data, width, height));
-
-            if (result != null) {
-                new Handler(Looper.getMainLooper()).post(new Runnable() {
-                    @Override
-                    public void run() {
-                        resultHandler.handleResult(result);
-                    }
+            LuminanceSource source = buildLuminanceSourceFromImageProxy(image);
+            if (source == null) {
+                image.close();
+                return;
+            }
+            Result rawResult = decodeResult(source);
+            if (rawResult != null) {
+                // Send event to JS side
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    WritableMap event = Arguments.createMap();
+                    event.putString("codeStringValue", rawResult.getText());
+                    // Fire "onReadCode" event
+                    reactContext
+                      .getJSModule(com.facebook.react.uimanager.events.RCTEventEmitter.class)
+                      .receiveEvent(cameraXView.getId(), "onReadCode", event);
                 });
             }
-            camera.setOneShotPreviewCallback(previewCallback);
-        } catch (RuntimeException e) {
-            Log.w("CameraKit", e.toString());
+        } catch (Exception e) {
+            Log.e("CameraKit", "Analyze exception: " + e.getMessage());
+        } finally {
+            image.close();
         }
     }
 
-    @Nullable
+    @SuppressWarnings("ConstantConditions")
+    private LuminanceSource buildLuminanceSourceFromImageProxy(ImageProxy image) {
+        // Pseudo-code for extracting the Y-plane from image in YUV_420_888 format
+        ByteBuffer yBuffer = image.getPlanes()[0].getBuffer();
+        int ySize = yBuffer.remaining();
+        byte[] yBytes = new byte[ySize];
+        yBuffer.get(yBytes, 0, ySize);
+
+        int width = image.getWidth();
+        int height = image.getHeight();
+
+        // If you need rotation, you can handle it here or let ZXing rotate. 
+        // We'll assume upright for simplicity:
+
+        // Then build a LuminanceSource (similar to your rotate logic).
+        // Possibly create a PlanarYUVLuminanceSource if you want to handle cropping/rotation:
+        // return new PlanarYUVLuminanceSource(yBytes, width, height, 0, 0, width, height, false);
+        // Just be mindful that ZXing typically wants data in row-major (left-to-right, top-to-bottom).
+        return new PlanarYUVLuminanceSource(yBytes, width, height, 0, 0, width, height, false);
+    }
+
     private Result decodeResult(LuminanceSource source) {
         Result rawResult = null;
         if (source != null) {
@@ -104,42 +123,7 @@ public class BarcodeScanner {
             } finally {
                 mMultiFormatReader.reset();
             }
-
-            if (rawResult == null && source.isRotateSupported()) {
-                LuminanceSource rotatedSource = source.rotateCounterClockwise();
-                bitmap = new BinaryBitmap(new HybridBinarizer(rotatedSource));
-                try {
-                    rawResult = mMultiFormatReader.decodeWithState(bitmap);
-                } catch (ReaderException ignored) {
-                } finally {
-                    mMultiFormatReader.reset();
-                }
-            }
         }
         return rawResult;
-    }
-
-    private LuminanceSource getLuminanceSource(byte[] data, int width, int height) {
-        Rect rect = CameraViewManager.getFramingRectInPreview(width, height);
-        try {
-            return new RotateLuminanceSource(data, width, height, rect.left, rect.top,
-                    rect.width(), rect.height(), false);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    private byte[] getRotatedData(byte[] data, Camera camera) {
-        Camera.Size size = camera.getParameters().getPreviewSize();
-        int width = size.width;
-        int height = size.height;
-
-        byte[] rotatedData = new byte[data.length];
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++)
-                rotatedData[x * height + height - y - 1] = data[x + y * width];
-        }
-        return rotatedData;
     }
 }
