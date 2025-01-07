@@ -5,20 +5,28 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
+
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
 
+import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import javax.annotation.Nullable;
 
@@ -59,11 +67,10 @@ public class Utils {
         return list;
     }
 
-
     @NonNull
-    public static WritableMap resizeImage(Context context, ReadableMap image, String imageUrlString, int maxResolution, int compressionQuality) throws IOException {
-        Bitmap sourceImage;
-        sourceImage = Utils.loadBitmapFromFile(context, imageUrlString, maxResolution, maxResolution);
+    public static WritableMap resizeImage(Context context, ReadableMap image, String imageUrlString,
+                                          int maxResolution, int compressionQuality) throws IOException {
+        Bitmap sourceImage = Utils.loadBitmapFromFile(context, imageUrlString, maxResolution, maxResolution);
 
         if (sourceImage == null) {
             throw new IOException("Unable to load source image from path");
@@ -76,7 +83,8 @@ public class Utils {
 
         // Save the resulting image
         File path = context.getCacheDir();
-        String resizedImagePath = Utils.saveImage(scaledImage, path, Long.toString(new Date().getTime()), Bitmap.CompressFormat.JPEG, compressionQuality);
+        String resizedImagePath = Utils.saveImage(scaledImage, path, Long.toString(new Date().getTime()),
+                Bitmap.CompressFormat.JPEG, compressionQuality);
 
         // Clean up remaining image
         scaledImage.recycle();
@@ -89,7 +97,6 @@ public class Utils {
         ans.putInt("height", scaledImage.getHeight());
         return ans;
     }
-
 
     /**
      * Resize the specified bitmap, keeping its aspect ratio.
@@ -113,7 +120,6 @@ public class Utils {
 
         return newImage;
     }
-
 
     /**
      * Compute the inSampleSize value to use to load a bitmap.
@@ -178,7 +184,6 @@ public class Utils {
         return loadBitmap(context, imagePath, options);
     }
 
-
     /**
      * Save the given bitmap in a directory. Extension is automatically generated using the bitmap format.
      */
@@ -210,15 +215,66 @@ public class Utils {
     }
 
     /**
-     * Since Camera API 1 doesn't support the new 18:9 and 18.5:9 screen aspect ratio, we convert to the
-     * max supported aspect ratio - 16:9
+     * Since Camera API 1 doesn't support the new 18:9 and 18.5:9 screen aspect ratio,
+     * we convert to the max supported aspect ratio - 16:9
      */
     public static int convertDeviceHeightToSupportedAspectRatio(float actualWidth, float actualHeight) {
-        return (int) (actualHeight / actualWidth > MAX_SCREEN_RATIO ? actualWidth * MAX_SCREEN_RATIO : actualHeight);
+        return (int) (actualHeight / actualWidth > MAX_SCREEN_RATIO 
+                ? actualWidth * MAX_SCREEN_RATIO 
+                : actualHeight
+        );
     }
 
-
+    // Existing method: runs on a background thread
     public static void runOnWorkerThread(Runnable runnable) {
         new Thread(runnable).start();
+    }
+
+    // ------------------------------------------------------------------------
+    // Additional methods needed for the new CameraX-based refactor:
+    // ------------------------------------------------------------------------
+
+    /**
+     * Reads an entire file into a byte array.
+     */
+    public static byte[] readFileToByteArray(File file) {
+        ByteArrayOutputStream bos = null;
+        FileInputStream fis = null;
+        try {
+            fis = new FileInputStream(file);
+            bos = new ByteArrayOutputStream();
+            byte[] buf = new byte[1024];
+            int bytesRead;
+            while ((bytesRead = fis.read(buf)) != -1) {
+                bos.write(buf, 0, bytesRead);
+            }
+            return bos.toByteArray();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        } finally {
+            try {
+                if (fis != null) fis.close();
+                if (bos != null) bos.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    /**
+     * Returns an executor that runs tasks on the application's main thread.
+     * Useful for posting UI updates.
+     */
+    public static Executor getMainExecutor(Context context) {
+        return ContextCompat.getMainExecutor(context);
+    }
+
+    /**
+     * Returns a dedicated worker executor, e.g., a single-thread or cached thread pool.
+     */
+    public static ExecutorService getWorkerExecutor() {
+        // For demonstration: single-thread pool for camera analyses or other tasks
+        return Executors.newSingleThreadExecutor();
     }
 }
