@@ -22,7 +22,7 @@ import com.drew.metadata.exif.ExifIFD0Directory;
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.WritableMap;
-import com.rncamerakit.camera.CameraViewManager;
+import com.rncamerakit.camerax.CameraXViewManager;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
