@@ -4,13 +4,11 @@ import android.graphics.Color;
 
 import androidx.annotation.ColorInt;
 import androidx.annotation.Nullable;
+// Import only the CameraX classes you actually need
 import androidx.camera.core.Camera;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageAnalysis;
 import androidx.camera.core.ImageCapture;
-import androidx.camera.core.ImageCapture.FLASH_MODE_AUTO;
-import androidx.camera.core.ImageCapture.FLASH_MODE_OFF;
-import androidx.camera.core.ImageCapture.FLASH_MODE_ON;
 import androidx.camera.core.Preview;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 
@@ -28,10 +26,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class CameraXViewManager extends SimpleViewManager<CameraXView> {
 
-    public static final String REACT_CLASS = "CameraView"; // same name as old
+    public static final String REACT_CLASS = "CameraView";
+
     private static ReactApplicationContext reactContext;
 
-    // We'll store global camera state here, but typically you might prefer instance-based or a separate manager.
+    // Our global-ish references
     private static ProcessCameraProvider cameraProvider;
     private static CameraSelector cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA;
     private static Camera camera;
@@ -40,7 +39,9 @@ public class CameraXViewManager extends SimpleViewManager<CameraXView> {
     private static BarcodeScannerX barcodeAnalyzer;
 
     private static AtomicBoolean isFrontFacing = new AtomicBoolean(false);
-    private static String currentFlashMode = "auto"; // track as a string for old API compatibility
+
+    // We'll track just "on"/"off" for torch
+    private static String currentFlashMode = "off";
 
     @Override
     public String getName() {
@@ -55,7 +56,6 @@ public class CameraXViewManager extends SimpleViewManager<CameraXView> {
         return view;
     }
 
-    // Expose event type to JS
     @Nullable
     @Override
     public Map<String, Object> getExportedCustomDirectEventTypeConstants() {
@@ -63,6 +63,10 @@ public class CameraXViewManager extends SimpleViewManager<CameraXView> {
                 .put("onReadCode", MapBuilder.of("registrationName", "onReadCode"))
                 .build();
     }
+
+    // -------------------------------------------------------------------------
+    // Props from JS
+    // -------------------------------------------------------------------------
 
     @ReactProp(name = "scanBarcode")
     public void setShouldScan(CameraXView view, boolean scanBarcode) {
@@ -90,14 +94,15 @@ public class CameraXViewManager extends SimpleViewManager<CameraXView> {
         view.setSurfaceBgColor(color);
     }
 
-    /**
-     * Rebinds or updates the camera use cases. 
-     * Called whenever props change or we switch front/back.
-     */
+    // -------------------------------------------------------------------------
+    // Camera Binding Logic
+    // -------------------------------------------------------------------------
+
     private static void bindCameraUseCases(CameraXView view) {
         if (view.getContext() == null) return;
+
         if (cameraProvider == null) {
-            // Attempt to get provider asynchronously
+            // Acquire cameraProvider asynchronously
             ProcessCameraProvider.getInstance(view.getContext()).addListener(() -> {
                 try {
                     cameraProvider = ProcessCameraProvider.getInstance(view.getContext()).get();
@@ -105,7 +110,7 @@ public class CameraXViewManager extends SimpleViewManager<CameraXView> {
                 } catch (ExecutionException | InterruptedException e) {
                     e.printStackTrace();
                 }
-            }, Utils.getMainExecutor());
+            }, Utils.getMainExecutor(view.getContext()));
         } else {
             bindPreviewAnalysis(view);
         }
@@ -113,12 +118,12 @@ public class CameraXViewManager extends SimpleViewManager<CameraXView> {
 
     private static void bindPreviewAnalysis(CameraXView view) {
         if (cameraProvider == null) return;
-        // Unbind everything first
+
         cameraProvider.unbindAll();
 
         // Determine lens facing
         cameraSelector = new CameraSelector.Builder()
-                .requireLensFacing(isFrontFacing.get() 
+                .requireLensFacing(isFrontFacing.get()
                         ? CameraSelector.LENS_FACING_FRONT
                         : CameraSelector.LENS_FACING_BACK)
                 .build();
@@ -127,11 +132,10 @@ public class CameraXViewManager extends SimpleViewManager<CameraXView> {
         Preview preview = new Preview.Builder().build();
         preview.setSurfaceProvider(view.getPreviewView().getSurfaceProvider());
 
-        // Build ImageCapture (for capturing photos)
+        // Build ImageCapture (for capturing photos if you need it)
         imageCapture = new ImageCapture.Builder().build();
-        setCameraXFlashMode(currentFlashMode);
 
-        // Build ImageAnalysis (for barcode scanning)
+        // Build ImageAnalysis for barcode scanning
         imageAnalysis = new ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build();
@@ -143,28 +147,59 @@ public class CameraXViewManager extends SimpleViewManager<CameraXView> {
             imageAnalysis.setAnalyzer(Utils.getWorkerExecutor(), barcodeAnalyzer);
         }
 
-        // Bind them to lifecycle
+        // Bind to lifecycle
         camera = cameraProvider.bindToLifecycle(
-                view.getLifecycleOwner(),
+                view,
                 cameraSelector,
                 preview,
                 imageCapture,
                 imageAnalysis
         );
+
+        // Now apply current torch setting
+        setFlashTorchMode(currentFlashMode);
     }
 
-    // ----- Static methods called by the JS Module -----
+    // -------------------------------------------------------------------------
+    // Public static methods - called by the React Module (CameraModule)
+    // -------------------------------------------------------------------------
 
     public static boolean changeCamera() {
-        // Flip front/back
         isFrontFacing.set(!isFrontFacing.get());
-        // We can't "return" whether it actually changed easily, but assume it's fine
+        // If the camera is currently bound, we need to rebind.
+        // We'll rely on the next call to bindCameraUseCases(...) from the view,
+        // or you can store a reference to the current view and call it directly.
         return true;
     }
 
+    /**
+     * Instead of using FLASH_MODE_OFF / AUTO / ON,
+     * we just enable or disable the torch. 
+     *
+     * @param mode "on" or "off" (or "auto" if you want, but we treat that as "off" here).
+     */
     public static boolean setFlashMode(String mode) {
-        currentFlashMode = mode == null ? "auto" : mode;
-        setCameraXFlashMode(currentFlashMode);
+        // Save the string (for getFlashMode).
+        currentFlashMode = mode == null ? "off" : mode;
+        return setFlashTorchMode(currentFlashMode);
+    }
+
+    /**
+     * Actually enable / disable the torch on the current camera, if available.
+     */
+    private static boolean setFlashTorchMode(String mode) {
+        if (camera == null) {
+            return false;
+        }
+        switch (mode) {
+            case "on":
+                camera.getCameraControl().enableTorch(true);
+                break;
+            default:
+                // treat everything else as "off", including "auto"
+                camera.getCameraControl().enableTorch(false);
+                break;
+        }
         return true;
     }
 
@@ -173,25 +208,13 @@ public class CameraXViewManager extends SimpleViewManager<CameraXView> {
     }
 
     public static boolean hasFlashForCurrentCamera() {
-        // We can check camera info if needed. 
-        // For simplicity, return true if the device *might* have flash facing that direction.
-        // A more robust approach would query the camera's characteristics.
+        // A more robust approach would read the actual camera characteristics.
+        // Here we just assume the back camera likely has a flash.
         return true;
     }
 
-    private static void setCameraXFlashMode(String mode) {
-        if (imageCapture == null) return;
-        switch (mode) {
-            case "off":
-                imageCapture.setFlashMode(FLASH_MODE_OFF);
-                break;
-            case "on":
-                imageCapture.setFlashMode(FLASH_MODE_ON);
-                break;
-            case "auto":
-            default:
-                imageCapture.setFlashMode(FLASH_MODE_AUTO);
-                break;
-        }
+    // If you have a separate "getImageCapture()" method used in your Capture command:
+    public static ImageCapture getImageCapture() {
+        return imageCapture;
     }
 }
