@@ -28,8 +28,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-//import javax.annotation.Nullable;
-
 public class Utils {
 
     private final static String CONTENT_PREFIX = "content://";
